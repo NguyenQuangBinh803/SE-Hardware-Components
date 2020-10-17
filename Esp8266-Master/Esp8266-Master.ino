@@ -1,4 +1,5 @@
-//Version 24.9
+//Version 20201017
+
 #include <ESP8266WiFi.h>
 #include <espnow.h>
 
@@ -67,15 +68,6 @@ struct_status_message slave_status;
 void OnDataSent(uint8_t *mac_addr, uint8_t sendStatus)
 {
   sent_status = sendStatus;
-  Serial.print("Last Packet Send Status: ");
-  if (sendStatus == 0)
-  {
-    Serial.println("Delivery success");
-  }
-  else
-  {
-    Serial.println("Delivery fail");
-  }
 }
 
 // Callback function that will be executed when data is received
@@ -111,19 +103,33 @@ void send_command(uint8_t broadcastAddress[], String device_name, String device_
 {
   master_command.device_name = device_name;
   master_command.device_command = device_command;
-  Serial.println(sizeof(master_command));
-//  esp_now_send(broadcastAddress, (uint8_t *)&master_command, sizeof(master_command));
-  
-  for (int i = 0; i < 10; i++)
+  //  while (sent_status != 0) {
+
+  //  }
+  for (int i = 0; i < 50; i++)
   {
     esp_now_send(broadcastAddress, (uint8_t *)&master_command, sizeof(master_command));
     delay(timerDelay);
-    //    Serial.println("Loop send status received: " + String(sent_status));
     if (sent_status == 0)
     {
-      sent_status == 1;
       break;
     }
+  }
+
+  if (sent_status == 1)
+  {
+    Serial.print("fail,");
+    Serial.print(slave_status.device_id); Serial.print(",");
+    Serial.print(slave_status.device_name); Serial.print(",");
+    Serial.print(slave_status.device_type); Serial.print(",");
+    Serial.print(slave_status.device_status); Serial.print(";");
+  } else if (sent_status == 0) {
+    sent_status = 1;
+    Serial.print("success,");
+    Serial.print(slave_status.device_id); Serial.print(",");
+    Serial.print(slave_status.device_name); Serial.print(",");
+    Serial.print(slave_status.device_type); Serial.print(",");
+    Serial.print(slave_status.device_status); Serial.print(";");
   }
 }
 
@@ -247,15 +253,17 @@ void setup()
   esp_now_register_recv_cb(OnDataRecv);
 
   esp_now_add_peer(broadcastAddresses[0], ESP_NOW_ROLE_SLAVE, 1, NULL, 0);
-//  esp_now_add_peer(broadcastAddress_2, ESP_NOW_ROLE_COMBO, 1, NULL, 0);
 }
 
 void loop()
 {
-  if ((millis() - lastTime) > 100)
+  if ((millis() - lastTime) > timerDelay)
   {
-    Serial.println("Send to client");
-    send_command(broadcastAddresses[0], "Somethigns", "COMMAND");
+    if (Serial.available())
+    {
+      serial_in_data = Serial.readStringUntil(';');
+      command_identification(serial_in_data);
+    }
     lastTime = millis();
   }
 }
